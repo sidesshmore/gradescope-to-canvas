@@ -4,6 +4,8 @@
 
 A Chrome extension that copies a multiple-choice quiz from Gradescope into a Canvas quiz: the questions, the answer key, the points, the math and the figures.
 
+<p align="center"><img src="docs/demo.gif" alt="Copying a quiz from Gradescope and importing it into Canvas" width="760"></p>
+
 If you've ever rebuilt an exam in Canvas by hand, you know the drill. Retype every question, re-mark every answer, re-upload every figure, fix whatever the math turned into. This does it in about a minute, and it all happens in your own browser, so there's no server to run and no API token to create.
 
 ## Using it
