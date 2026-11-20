@@ -56,3 +56,7 @@ extension/background.js   downloads figures from Gradescope
 ```
 
 The logo is `extension/icons/logo.svg`. The 16px icon has its own simplified drawing, `logo-16.svg`, because the full one blurs at that size.
+
+## License
+
+MIT, see [LICENSE](LICENSE). Not affiliated with or endorsed by Gradescope, Canvas, Instructure or Arizona State University. Contributions are welcome, see [CONTRIBUTING.md](CONTRIBUTING.md).
