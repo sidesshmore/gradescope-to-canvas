@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <!-- 16px cut: fewer, heavier bubbles so the open/filled contrast survives at tiny sizes. -->
+  <rect width="128" height="128" rx="26" fill="#FFD84A"/>
+  <circle cx="38" cy="38" r="20" fill="none" stroke="#2B2F36" stroke-width="13"/>
+  <circle cx="90" cy="38" r="26" fill="#2B2F36"/>
+  <circle cx="38" cy="90" r="26" fill="#2B2F36"/>
+  <circle cx="90" cy="90" r="20" fill="none" stroke="#2B2F36" stroke-width="13"/>
+</svg>
