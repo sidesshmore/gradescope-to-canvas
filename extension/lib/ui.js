@@ -198,6 +198,8 @@
       catch (e) { details.open = true; copy.textContent = 'Select the text below to copy'; }
       setTimeout(() => { copy.textContent = 'Copy diagnostics'; }, 2500);
     } });
+    // An updated extension leaves old pages unable to talk to it; the only fix is a reload, so offer just that.
+    if (ex.kind === 'reload') return { title: ex.title, body: [notice('warn', ex.message), h('p', {}, ex.hint)], actions: [button('Reload page', { variant: 'primary', onclick: () => location.reload() })] };
     return { title: opts.title || ex.title, body: [notice('err', ex.message), h('p', { class: 'muted' }, ex.hint), details], actions: [copy].concat(opts.actions || []) };
   }
 

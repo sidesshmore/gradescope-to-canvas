@@ -16,7 +16,11 @@
   const dlg = ui.dialog(shadow);
   const history = window.gs2canvasHistory.createHistory(chrome.storage.local);
 
-  shadow.append(ui.launcher('Copy or import', openHub));
+  // After the extension is updated, pages that were already open can no longer reach it.
+  const alive = () => { try { return !!chrome.runtime.id; } catch (e) { return false; } };
+  const staleNotice = () => dlg.render(ui.failureView({ error: new Error('Extension context invalidated'), step: 'Opening the extension' }));
+
+  shadow.append(ui.launcher('Copy or import', () => (alive() ? openHub() : staleNotice())));
 
   // ---- small helpers ------------------------------------------------------------
   const b64ToBytes = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
@@ -443,6 +447,7 @@
         }
         await history.done();
         await history.discardIfEmpty(histId);
+        await history.done();
         setProgress('Done', 1);
 
         dlg.render({
@@ -454,7 +459,8 @@
             isBank
               ? h('p', {}, 'They’re in the bank now. ', h('a', { href: '/courses/' + ids.courseId + '/question_banks/' + target.bank.id, target: '_blank', rel: 'noopener' }, 'Open the bank'), '. In a quiz, use Find Questions to pull from it.')
               : h('p', {}, 'Reload the page to see them in the editor. The title, settings and publishing are yours to set.'),
-            result.created.length + result.updated.length ? h('p', { class: 'muted small' }, 'Not what you wanted? ', h('button', { class: 'linkbtn first', type: 'button', onclick: () => confirmUndo(histId, openHub) }, 'Undo this import')) : null,
+            history.failed ? notice('warn', 'This import couldn’t be recorded, so it can’t be undone from here.') : null,
+            result.created.length + result.updated.length && !history.failed ? h('p', { class: 'muted small' }, 'Not what you wanted? ', h('button', { class: 'linkbtn first', type: 'button', onclick: () => confirmUndo(histId, openHub) }, 'Undo this import')) : null,
           ],
           actions: isBank ? [closeButton('Done', true)] : [closeButton('Close'), button('Reload page', { variant: 'primary', onclick: () => location.reload() })],
         });

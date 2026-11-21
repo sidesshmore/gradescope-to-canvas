@@ -11,8 +11,12 @@
 
   function createHistory(store) {
     let queue = Promise.resolve(); // writes happen one at a time, in order
+    let failed = false;            // record-keeping must never break an import: note the failure and carry on
     const read = async () => ((await store.get(KEY))[KEY] || { entries: [] });
-    const change = (fn) => { queue = queue.then(async () => { const h = await read(); fn(h); h.entries = h.entries.slice(-KEEP); await store.set({ [KEY]: h }); }); return queue; };
+    const change = (fn) => {
+      queue = queue.then(async () => { const h = await read(); fn(h); h.entries = h.entries.slice(-KEEP); await store.set({ [KEY]: h }); }).catch(() => { failed = true; });
+      return queue;
+    };
 
     return {
       /** Begin recording an import into `target` ({ kind, courseId, quizId | bankId, bankTitle, bankCreated }). */
@@ -26,6 +30,8 @@
       /** Drop an entry that ended up changing nothing. */
       discardIfEmpty: (id) => change((h) => { h.entries = h.entries.filter((x) => x.id !== id || x.created.length || x.updated.length || (x.target.bankCreated)); }),
       done: () => queue,
+      /** True if some part of the record could not be saved (so undo may be incomplete). */
+      get failed() { return failed; },
       /** Imports in this course that can still be undone, newest first. */
       async list(courseId) {
         await queue;

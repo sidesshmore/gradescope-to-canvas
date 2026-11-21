@@ -36,6 +36,7 @@
     if (s === 422) return { title: 'Canvas rejected a question', message: 'Canvas didn’t accept the data for one question' + (e.detail ? ': ' + e.detail : '.'), hint: 'Untick that question and import the rest, then copy the diagnostics into a bug report.' };
     if (s === 429) return { title: 'Canvas is asking us to slow down', message: 'Too many requests in a short time.', hint: 'Wait a minute, then try again. Nothing is lost.' };
     if (s >= 500) return { title: 'Canvas had a problem', message: 'Canvas answered with an error (HTTP ' + s + ').', hint: 'Wait a few minutes and try again.' };
+    if (/Extension context invalidated/i.test(String(e.message))) return { kind: 'reload', title: 'The extension was updated', message: 'This page is still running the previous version of the extension.', hint: 'Reload the page to carry on. Nothing is lost.' };
     if (e instanceof TypeError || /Failed to fetch|NetworkError|Load failed/i.test(String(e.message))) return { title: 'Couldn’t reach the site', message: 'The request didn’t get through.', hint: 'Check your connection and try again.' };
     if (e.kind === 'page') return { title: e.title || 'This page isn’t what the extension expects', message: String(e.message), hint: e.hint || 'Make sure you’re on the right page. If you are, the page layout may have changed.' };
     return { title: 'Something went wrong', message: String(e.message || e), hint: 'Try again. If it keeps happening, copy the diagnostics into a bug report.' };

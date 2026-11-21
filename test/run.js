@@ -309,3 +309,14 @@ console.log('manifest tests passed');
   files.forEach((f) => { try { new vm.Script(fs.readFileSync(path.join(dir, f), 'utf8'), { filename: f }); } catch (e) { assert.fail(f + ' does not parse: ' + e.message); } });
   console.log('script syntax tests passed');
 })();
+
+// a broken store must not break an import
+(async () => {
+  const H = globalThis.gs2canvasHistory.createHistory({ get: async () => { throw new Error('Extension context invalidated'); }, set: async () => { throw new Error('nope'); } });
+  const id = H.start({ kind: 'quiz', courseId: 1, quizId: 2 });
+  H.addCreated(id, 'A', 1); H.addCreated(id, 'B', 2);
+  await H.done(); await H.discardIfEmpty(id); await H.done();
+  assert.strictEqual(H.failed, true, 'failure is reported, never thrown');
+  assert.ok(/updated/.test(globalThis.gs2canvasErrors.explain(new Error('Extension context invalidated')).title));
+  console.log('resilience tests passed');
+})().catch((e) => { console.error(e); process.exit(1); });

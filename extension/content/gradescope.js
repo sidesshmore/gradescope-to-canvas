@@ -8,7 +8,8 @@
   const { shadow } = mount('gs2canvas-gradescope');
   const dlg = ui.dialog(shadow);
 
-  shadow.append(ui.launcher('Copy quiz for Canvas', capture));
+  const alive = () => { try { return !!chrome.runtime.id; } catch (e) { return false; } };
+  shadow.append(ui.launcher('Copy quiz for Canvas', () => (alive() ? capture() : dlg.render(ui.failureView({ error: new Error('Extension context invalidated'), step: 'Opening the extension' })))));
 
   const working = (detail) => dlg.render({ title: 'Copying questions', body: [h('p', { class: 'muted' }, detail)], locked: true });
   const closeButton = (label, primary) => button(label || 'Close', { variant: primary === false ? undefined : 'primary', onclick: dlg.close });
