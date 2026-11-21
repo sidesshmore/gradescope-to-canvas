@@ -109,7 +109,7 @@
     return {
       format: 'gs2canvas/1',
       source: { site: 'gradescope', url: doc.location.href.split('?')[0] },
-      title: null, // assignment name is not on the rubric page; supplied by the user at import time
+      title: (((doc.querySelector('.sidebar--title') || {}).textContent || '').replace(/\s*Navigation\s*$/, '').replace(/\s+/g, ' ').trim()) || null,
       totalPoints: parsePoints(header),
       sections: nest(flat),
       images: ctx.images,

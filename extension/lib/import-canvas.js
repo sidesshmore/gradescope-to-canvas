@@ -50,6 +50,8 @@
   /**
    * opts.only:     array of question numbers to include (default: all)
    * opts.imageUrls: { N: canvasUrl } for [[image:N]]; unresolved -> placeholder
+   * opts.namePrefix: text put before each question number to make the Canvas question name
+   *                 (keeps names unique when questions from several quizzes share one Canvas quiz)
    * opts.groupContext: 'inline' = prepend a group's prompt to each child
    */
   function plan(quiz, opts) {
@@ -75,11 +77,12 @@
         }
         const ctx = sec.type === 'group' && opts.groupContext !== 'none' && sec.prompt && !(opts.skipContextFor || []).includes(sec.number)
           ? toHtml(sec.prompt, imageHtml) : '';
+        const name = (opts.namePrefix || '') + q.number;
         questions.push({
-          number: q.number,
+          number: name,
           question: {
             position: questions.length + 1 + (opts.positionOffset || 0),
-            question_name: q.number,
+            question_name: name,
             question_text: ctx + toHtml(q.prompt, imageHtml),
             question_type: q.type === 'multiple_answers' ? 'multiple_answers_question' : 'multiple_choice_question',
             points_possible: q.points,

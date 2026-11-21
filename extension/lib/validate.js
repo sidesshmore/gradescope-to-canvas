@@ -9,7 +9,10 @@
 (function (root) {
   const ok = (q) => q.type === 'multiple_choice' || q.type === 'multiple_answers';
 
-  function validateQuiz(quiz) {
+  // opts.subset: the quiz holds only the questions the user picked, so totals taken from the
+  // whole Gradescope quiz (group points, total points, figure count) no longer apply.
+  function validateQuiz(quiz, opts) {
+    const subset = !!(opts && opts.subset);
     const warnings = [];
     const add = (level, text) => warnings.push({ level, text });
     const leaves = [];
@@ -35,19 +38,19 @@
     const points = supported.reduce((a, q) => a + (q.points || 0), 0);
 
     (quiz.sections || []).forEach((s) => {
-      if (s.type !== 'group' || s.points == null) return;
+      if (subset || s.type !== 'group' || s.points == null) return;
       const sum = s.children.filter(ok).reduce((a, q) => a + (q.points || 0), 0);
       const skipped = s.children.length - s.children.filter(ok).length;
       if (!skipped && Math.abs(sum - s.points) > 1e-9) add('warn', s.number + ' is worth ' + s.points + ' on Gradescope but its questions add up to ' + sum + '.');
     });
-    if (quiz.totalPoints != null && Math.abs(points - quiz.totalPoints) > 1e-9 && supported.length === leaves.length) {
+    if (!subset && quiz.totalPoints != null && Math.abs(points - quiz.totalPoints) > 1e-9 && supported.length === leaves.length) {
       add('warn', 'Gradescope says ' + quiz.totalPoints + ' points but the questions add up to ' + points + '.');
     }
 
     const text = JSON.stringify(leaves);
     const equations = (text.match(/\\\\\(/g) || []).length + (text.match(/\\\\\[/g) || []).length;
     const refs = new Set((text.match(/\[\[image:(\d+)\]\]/g) || []));
-    if (refs.size !== (quiz.images || []).length) add('warn', 'Figure count mismatch: ' + refs.size + ' referenced in questions, ' + (quiz.images || []).length + ' found.');
+    if (!subset && refs.size !== (quiz.images || []).length) add('warn', 'Figure count mismatch: ' + refs.size + ' referenced in questions, ' + (quiz.images || []).length + ' found.');
 
     return {
       leaves: leaves.length, supported: supported.length, points, equations,
@@ -56,5 +59,20 @@
     };
   }
 
-  root.gs2canvasValidate = { validateQuiz };
+  /**
+   * Figure numbers referenced by the chosen questions, plus by the shared text of their group
+   * unless that group is listed in skipContextFor. `only` is an array of question numbers.
+   */
+  function imagesUsed(quiz, only, skipContextFor) {
+    const found = new Set();
+    const scan = (t) => { String(t || '').replace(/\[\[image:(\d+)\]\]/g, (_, n) => { found.add(Number(n)); return ''; }); };
+    (quiz.sections || []).forEach((sec) => (sec.type === 'group' ? sec.children : [sec]).forEach((q) => {
+      if (!only.includes(q.number)) return;
+      if (sec.type === 'group' && !(skipContextFor || []).includes(sec.number)) scan(sec.prompt);
+      scan(q.prompt); (q.choices || []).forEach((c) => scan(c.text));
+    }));
+    return found;
+  }
+
+  root.gs2canvasValidate = { validateQuiz, imagesUsed };
 })(typeof window !== 'undefined' ? window : globalThis);

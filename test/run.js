@@ -169,3 +169,24 @@ console.log('manifest tests passed');
   global.document = saved.document;
   console.log('ui tests passed');
 })();
+
+// several quizzes in one Canvas quiz: names are prefixed, subset validation ignores whole-quiz totals
+(() => {
+  require('../extension/lib/validate.js');
+  const { validateQuiz, imagesUsed } = globalThis.gs2canvasValidate;
+  const quiz = { images: [{}, {}, {}], totalPoints: 10, sections: [
+    { number: 'Q1', type: 'group', points: 6, prompt: 'Look at [[image:0]]', children: [
+      { number: 'Q1.1', type: 'multiple_choice', points: 3, prompt: 'a [[image:1]]', choices: [{ text: 'x', correct: true }, { text: 'y', correct: false }] },
+      { number: 'Q1.2', type: 'multiple_choice', points: 3, prompt: 'b', choices: [{ text: '[[image:2]]', correct: true }] }] }] };
+  const subset = { images: quiz.images, totalPoints: null, sections: [Object.assign({}, quiz.sections[0], { points: null, children: [quiz.sections[0].children[0]] })] };
+  assert.ok(validateQuiz(subset).warnings.some((w) => /Figure count/.test(w.text)), 'full validation flags a partial copy');
+  assert.strictEqual(validateQuiz(subset, { subset: true }).warnings.length, 0, 'subset validation does not');
+  assert.deepStrictEqual([...imagesUsed(quiz, ['Q1.1'], [])].sort(), [0, 1], 'group text figure + own figure');
+  assert.deepStrictEqual([...imagesUsed(quiz, ['Q1.1'], ['Q1'])], [1], 'repeat-off group text drops its figure');
+  assert.deepStrictEqual([...imagesUsed(quiz, ['Q1.2'], [])].sort(), [0, 2], 'figure inside a choice');
+  const a = gs2canvas.plan(quiz, { namePrefix: 'Exam A: ' }), b = gs2canvas.plan(quiz, { namePrefix: 'Exam B: ', positionOffset: 2 });
+  assert.deepStrictEqual(a.map((p) => p.number).concat(b.map((p) => p.number)), ['Exam A: Q1.1', 'Exam A: Q1.2', 'Exam B: Q1.1', 'Exam B: Q1.2']);
+  assert.strictEqual(b[0].question.question_name, 'Exam B: Q1.1');
+  assert.strictEqual(b[0].question.position, 3);
+  console.log('basket tests passed');
+})();

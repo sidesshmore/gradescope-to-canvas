@@ -10,9 +10,10 @@ If you've ever rebuilt an exam in Canvas by hand, you know the drill. Retype eve
 
 ## Using it
 
-1. On Gradescope, open the assignment's **rubric page** and click **Copy quiz for Canvas**. It's the dark tab on the right edge of the page.
-2. In Canvas, open the target quiz's **Edit** page and click **Import from Gradescope**.
-3. Tick the questions you want in the preview (all new ones start ticked), click **Import**, then reload the page.
+1. On Gradescope, open the assignment's **rubric page** and click **Copy quiz for Canvas**. It's the dark tab on the right edge of the page. Tick the questions you want (a whole section at a time works too) and click **Copy**.
+2. Want questions from another Gradescope quiz in the same Canvas quiz? Repeat step 1 on that quiz. Each one is added to what you've already copied.
+3. In Canvas, open the target quiz's **Edit** page and click **Import from Gradescope**.
+4. Look over the preview, untick anything you don't want, click **Import**, then reload the page.
 
 The quiz title, settings and publishing are left to you.
 
@@ -25,7 +26,7 @@ The quiz title, settings and publishing are left to you.
 
 Before it copies anything it checks that every question has an answer key, that the points add up and that question numbers are unique. Anything it can't copy (free response, say) is listed as "Not copied" in the preview instead of quietly disappearing.
 
-It never deletes anything. Questions already in the quiz are left alone unless you ask it to replace them, and if the quiz had other questions, new ones are added at the end without reshuffling yours.
+It never deletes anything. Questions already in the quiz are left alone unless you tick them to be replaced, and if the quiz had other questions, new ones are added at the end without reshuffling yours.
 
 ## Install
 
