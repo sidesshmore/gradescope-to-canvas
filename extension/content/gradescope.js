@@ -12,6 +12,9 @@
 
   const working = (detail) => dlg.render({ title: 'Copying questions', body: [h('p', { class: 'muted' }, detail)], locked: true });
   const closeButton = (label, primary) => button(label || 'Close', { variant: primary === false ? undefined : 'primary', onclick: dlg.close });
+  // page features the extractor depends on, for the diagnostics (counts only, no text)
+  const probe = () => { try { return window.probeGradescope(document); } catch (e) { return {}; } };
+  const fail = (error, step) => dlg.render(ui.failureView({ error, step, extra: probe(), actions: [closeButton()] }));
   const isOk = (q) => q.type === 'multiple_choice' || q.type === 'multiple_answers';
   const answerLetters = (q) => q.choices.map((c, i) => (c.correct ? 'ABCDEFGHIJ'[i] : '')).filter(Boolean);
 
@@ -45,8 +48,10 @@
     working('Reading the questions on this page.');
     let quiz;
     try { quiz = window.extractGradescopeQuiz(document); }
-    catch (e) {
-      return dlg.render({ title: 'Couldn’t read this page', body: [notice('err', String((e && e.message) || e)), h('p', { class: 'muted' }, 'Make sure you’re on the assignment’s rubric page.')], actions: [closeButton()] });
+    catch (e) { return fail(e, 'Reading the rubric page'); }
+    if (!quiz.sections.some((s) => (s.type === 'group' ? s.children : [s]).some(isOk))) {
+      const total = quiz.sections.reduce((a, s) => a + (s.type === 'group' ? s.children.length : 1), 0);
+      return fail(window.gs2canvasErrors.pageError('Nothing on this page can be copied', 'None of the ' + plural(total, 'question') + ' on this page is multiple choice or select-all.', 'This tool copies multiple-choice and select-all questions. If this page has some, Gradescope may have changed how it shows them.'), 'Reading the rubric page');
     }
     const sourceId = (location.pathname.match(/assignments\/(\d+)/) || [])[1] || 'unknown';
     const title = quiz.title || ('Quiz ' + sourceId);
@@ -142,9 +147,7 @@
       const entry = { id: src.id, title: src.title, url: quiz.source && quiz.source.url, capturedAt: new Date().toISOString(), quiz: stored, images };
       const next = sources.some((s) => s.id === src.id) ? sources.map((s) => (s.id === src.id ? entry : s)) : sources.concat(entry);
       try { await chrome.storage.local.set({ basket: { version: 2, sources: next } }); }
-      catch (e) {
-        return dlg.render({ title: 'Couldn’t save the copy', body: [notice('err', String((e && e.message) || e))], actions: [closeButton()] });
-      }
+      catch (e) { return fail(e, 'Saving the copy in the browser'); }
       const total = next.reduce((a, s) => a + countLeaves(s.quiz), 0);
       dlg.render({
         title: 'Questions copied',

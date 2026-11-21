@@ -223,3 +223,78 @@ console.log('manifest tests passed');
   assert.strictEqual(pl[1].question.position, 2);
   console.log('canvas source tests passed');
 })();
+
+// failure messages, history/undo, banks
+(async () => {
+  require('../extension/lib/errors.js'); require('../extension/lib/history.js');
+  const E = globalThis.gs2canvasErrors;
+  const res = (status, body) => ({ ok: status < 400, status, json: async () => body });
+  const e422 = await E.httpError('POST', '/api/v1/courses/12/quizzes/34/questions?x=1', res(422, { errors: { question_text: ['too long'] } }));
+  assert.strictEqual(e422.status, 422); assert.ok(/too long/.test(e422.detail));
+  assert.ok(/rejected a question/.test(E.explain(e422).title) && /too long/.test(E.explain(e422).message));
+  assert.ok(/signed out/.test(E.explain({ status: 401 }).title));
+  assert.ok(/slow down/.test(E.explain({ status: 429 }).title));
+  assert.ok(/Couldn.t reach/.test(E.explain(new TypeError('Failed to fetch')).title));
+  assert.strictEqual(E.explain(E.pageError('Wrong page', 'No questions', 'Go to rubric')).hint, 'Go to rubric');
+  const d = E.diagnostics({ step: 'Saving question 3', error: e422, extra: { 'Questions chosen': 5 } });
+  assert.ok(/POST \/api\/v1\/courses\/#\/quizzes\/#\/questions/.test(d) && !/courses\/12/.test(d) && !/x=1/.test(d), 'ids and query masked');
+  assert.ok(/Step: Saving question 3/.test(d) && /Questions chosen: 5/.test(d) && /No quiz content/.test(d));
+
+  // fake Canvas: one quiz holding questions, bank holding questions
+  const mkTarget = (kind, initial) => {
+    const qs = initial.map((q) => Object.assign({}, q)); const log = [];
+    return { kind, qs, log, list: async () => qs.map((q) => Object.assign({}, q)), remove: async (id) => { log.push('del ' + id); qs.splice(qs.findIndex((q) => q.id === id), 1); },
+      update: async (id, body) => { log.push('put ' + id + ' ' + body.question_text); }, create: async () => ({ id: 0 }) };
+  };
+  const store = (() => { const o = {}; return { get: async (k) => ({ [k]: o[k] }), set: async (v) => Object.assign(o, JSON.parse(JSON.stringify(v))), o }; })();
+  const H = globalThis.gs2canvasHistory.createHistory(store);
+  const hid = H.start({ kind: 'quiz', courseId: 1, quizId: 2 });
+  H.addCreated(hid, 'A: 1', 11); H.addCreated(hid, 'A: 2', 12); H.addUpdated(hid, 'A: 3', 13, { question_text: 'old text' });
+  const quiz = mkTarget('quiz', [{ id: 11 }, { id: 13 }, { id: 99 }]); // 12 was already removed by hand; 99 is the teacher's own
+  assert.strictEqual((await H.list(1)).length, 1); assert.strictEqual((await H.list(5)).length, 0, 'other course not listed');
+  const out = await H.undo((await H.list(1))[0], { quizTarget: () => quiz, bankTarget: () => null, deleteBank: async () => {} });
+  assert.deepStrictEqual(quiz.log, ['del 11', 'put 13 old text'], 'removes what it created, restores what it replaced, nothing else');
+  assert.deepStrictEqual(quiz.qs.map((q) => q.id), [13, 99], 'the teacher’s own question is untouched');
+  assert.deepStrictEqual([out.deleted, out.restored, out.gone, out.failed.length], [1, 1, 1, 0]);
+  assert.strictEqual((await H.list(1)).length, 0, 'undone imports leave the list');
+
+  // a bank created by the import goes away when it is empty again
+  const hb = H.start({ kind: 'bank', courseId: 1, bankId: 7, bankTitle: 'B', bankCreated: true });
+  H.addCreated(hb, 'A: 1', 21);
+  const bank = mkTarget('bank', [{ id: 21 }]); let bankGone = false;
+  const ob = await H.undo((await H.list(1))[0], { quizTarget: () => null, bankTarget: () => bank, deleteBank: async (c, b) => { bankGone = b === 7; } });
+  assert.ok(ob.bankDeleted && bankGone);
+  // a failed delete keeps the entry so it can be retried
+  const hf = H.start({ kind: 'quiz', courseId: 1, quizId: 2 }); H.addCreated(hf, 'A: 9', 31);
+  const stuck = mkTarget('quiz', [{ id: 31 }]); stuck.remove = async () => { throw Object.assign(new Error('x'), { status: 403 }); };
+  const of = await H.undo((await H.list(1))[0], { quizTarget: () => stuck, bankTarget: () => null, deleteBank: async () => {} });
+  assert.deepStrictEqual(of.failed, ['A: 9']); assert.strictEqual((await H.list(1)).length, 1, 'still listed after a failure');
+  const hz = H.start({ kind: 'quiz', courseId: 1, quizId: 3 }); H.discardIfEmpty(hz);
+  assert.strictEqual((await H.list(1)).length, 1, 'an import that changed nothing leaves no entry');
+
+  // bank target talks to Canvas's own routes; sync reports what it wrote
+  const calls = [];
+  global.fetch = async (path, init) => {
+    calls.push((init.method || 'GET') + ' ' + path);
+    if (path.includes('/questions?page=1')) return res(200, { pages: 1, questions: [{ assessment_question: { id: '5', name: 'Old', question_data: { question_type: 'x' } } }] });
+    return res(200, { id: '77' });
+  };
+  const T = gs2canvas.bankTarget(9, { id: '3', title: 'B' });
+  assert.deepStrictEqual((await T.list()).map((q) => [q.id, q.question_name]), [['5', 'Old']]);
+  const got = { c: [], u: [] };
+  const r = await gs2canvas.sync([{ number: 'Old', question: { a: 1 } }, { number: 'New', question: { a: 2 } }], T, { update: ['Old'], onCreated: (n, id) => got.c.push([n, id]), onUpdated: (n, id) => got.u.push([n, id]) });
+  assert.deepStrictEqual([r.created, r.updated], [['New'], ['Old']]); assert.deepStrictEqual(got, { c: [['New', '77']], u: [['Old', '5']] });
+  assert.ok(calls.includes('POST /courses/9/question_banks/3/assessment_questions') && calls.includes('PUT /courses/9/question_banks/3/assessment_questions/5'));
+  console.log('failure/history/bank tests passed');
+})().catch((e) => { console.error(e); process.exit(1); });
+
+// wrong page: a clear message, not a stack trace
+(() => {
+  require('../extension/lib/extract-gradescope.js');
+  let err = null;
+  try { globalThis.extractGradescopeQuiz({ querySelector: () => null, querySelectorAll: () => [], location: { href: 'https://x/' } }); } catch (e) { err = e; }
+  assert.ok(err && err.kind === 'page' && /rubric/.test(err.hint), 'no rubric questions -> page error');
+  const probe = globalThis.probeGradescope({ querySelectorAll: () => [1, 2], querySelector: () => null, title: 'T' });
+  assert.strictEqual(probe['Rubric questions'], 2);
+  console.log('page error tests passed');
+})();

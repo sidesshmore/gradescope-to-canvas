@@ -31,7 +31,7 @@
   .overlay.enter .panel { animation: gs2c-rise .16s ease-out; }
   @keyframes gs2c-fade { from { opacity: 0; } to { opacity: 1; } }
   @keyframes gs2c-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-  .panel { display: flex; flex-direction: column; width: min(640px, 100%); max-height: min(720px, calc(100vh - 48px));
+  .panel { display: flex; flex-direction: column; width: min(760px, 100%); max-height: min(720px, calc(100vh - 48px));
     background: #fff; color: var(--text); border-radius: 12px; outline: none; font-size: 13px; line-height: 1.5;
     box-shadow: 0 0 0 1px rgba(20,22,26,.08), 0 24px 60px -12px rgba(20,22,26,.4); }
   .head { display: flex; align-items: center; gap: 12px; padding: 20px 24px 4px; }
@@ -51,6 +51,7 @@
   .btn:hover { background: var(--well); }
   .btn.primary { background: var(--ink); border-color: var(--ink); color: #fff; }
   .btn.primary:hover { background: var(--ink-hover); }
+  .btn.danger { background: var(--err); border-color: var(--err); color: #fff; } .btn.danger:hover { filter: brightness(.92); }
   .btn:disabled { opacity: .45; cursor: default; }
   .btn:focus-visible, input:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 
@@ -72,8 +73,18 @@
   td { padding: 6px 12px; border-bottom: 1px solid #F0F1F3; } tr:last-child td { border-bottom: 0; }
   .choice { display: block; width: 100%; text-align: left; margin: 0 0 8px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; background: #fff; font: inherit; color: inherit; cursor: pointer; }
   .choice:hover:not(:disabled) { border-color: var(--ink); }
+  .choice.row { display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: default; } .choice.row:hover { border-color: var(--line); }
   .choice:disabled { cursor: default; opacity: .6; }
   .choice .t { display: block; font-weight: 600; } .choice .q { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; }
+  details { margin-top: 10px; } summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+  pre { margin: 8px 0 0; padding: 10px 12px; max-height: 160px; overflow: auto; background: #F7F8FA; border: 1px solid var(--line); border-radius: 8px; font: 11.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; word-break: break-word; }
+  input[type=number], input[type=text], select { height: 28px; padding: 0 8px; border: 1px solid #CBD0D7; border-radius: 6px; font: inherit; font-size: 12.5px; color: var(--ink); background: #fff; }
+  input[type=number] { width: 64px; text-align: right; font-variant-numeric: tabular-nums; }
+  td input[type=number] { height: 24px; width: 58px; padding: 0 6px; }
+  .tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 8px; font-size: 12.5px; color: var(--muted); }
+  .mv { width: 22px; height: 22px; padding: 0; border: 1px solid transparent; border-radius: 5px; background: none; color: var(--muted); font: inherit; line-height: 1; cursor: pointer; }
+  .mv:hover:not(:disabled) { border-color: #CBD0D7; color: var(--ink); } .mv:disabled { opacity: .3; cursor: default; }
+  .dest { margin: 0 0 4px; } .dest .fields { display: flex; gap: 8px; margin: 2px 0 6px 25px; flex-wrap: wrap; }
   tr.grp td { background: #F7F8FA; font-weight: 550; border-bottom: 1px solid var(--line); }
   td.indent { padding-left: 22px; }
   .srcname { font-weight: 650; }
@@ -153,7 +164,7 @@
   /** variant: 'primary' | 'secondary' */
   const button = (label, opts) => {
     const o = opts || {};
-    return h('button', { class: 'btn' + (o.variant === 'primary' ? ' primary' : ''), type: 'button', onclick: o.onclick, disabled: !!o.disabled }, label);
+    return h('button', { class: 'btn' + (o.variant === 'primary' ? ' primary' : '') + (o.variant === 'danger' ? ' danger' : ''), type: 'button', onclick: o.onclick, disabled: !!o.disabled }, label);
   };
 
   const plural = (n, one, many) => n + ' ' + (n === 1 ? one : (many || one + 's'));
@@ -166,6 +177,23 @@
     if (r.equations) extras.push(num(r.equations, 'equation'));
     const tail = extras.length ? [', with ', extras[0], extras[1] ? [' and ', extras[1]] : null] : [];
     return h('p', { class: 'lead' }, num(r.supported, 'question'), ' worth ', h('b', {}, String(r.points)), ' ' + (r.points === 1 ? 'point' : 'points'), tail, '.');
+  }
+
+  /**
+   * Render options for a failure: what happened in plain words, what to try, and a one-click
+   * "Copy diagnostics". opts: { error, step, extra, actions }. Pass the result to dialog.render().
+   */
+  function failureView(opts) {
+    const E = root.gs2canvasErrors;
+    const ex = E.explain(opts.error);
+    const text = E.diagnostics({ step: opts.step, error: opts.error, extra: opts.extra });
+    const details = h('details', {}, h('summary', {}, 'What gets copied'), h('pre', {}, text));
+    const copy = button('Copy diagnostics', { onclick: async () => {
+      try { await navigator.clipboard.writeText(text); copy.textContent = 'Copied'; }
+      catch (e) { details.open = true; copy.textContent = 'Select the text below to copy'; }
+      setTimeout(() => { copy.textContent = 'Copy diagnostics'; }, 2500);
+    } });
+    return { title: opts.title || ex.title, body: [notice('err', ex.message), h('p', { class: 'muted' }, ex.hint), details], actions: [copy].concat(opts.actions || []) };
   }
 
   /** The launcher tab: logo + label. */
@@ -197,5 +225,5 @@
     return { render, close, get isOpen() { return !!overlay; } };
   }
 
-  root.gs2canvasUI = { h, mount, logo, launcher, dialog, notice, button, summary, plural };
+  root.gs2canvasUI = { h, mount, logo, launcher, dialog, notice, button, summary, plural, failureView };
 })(typeof window !== 'undefined' ? window : globalThis);

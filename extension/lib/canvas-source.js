@@ -12,6 +12,24 @@
   const plainText = (html) => String(html || '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\s+/g, ' ').trim();
   const LETTERS = 'ABCDEFGHIJ';
 
+  /** The fields needed to create a question like `q` (as Canvas returns it); null for unsupported types. */
+  function payloadOf(q) {
+    if (!q || !TYPES[q.question_type]) return null;
+    const raw = { question_text: String(q.question_text || ''), question_type: q.question_type, points_possible: q.points_possible == null ? null : q.points_possible };
+    COMMENTS.forEach((k) => { if (q[k]) raw[k] = q[k]; });
+    const answers = Array.isArray(q.answers) ? q.answers : [];
+    if (answers.length && q.question_type !== 'essay_question' && q.question_type !== 'text_only_question') {
+      raw.answers = answers.map((a) => {
+        const o = { answer_text: a.text == null ? '' : a.text, answer_weight: a.weight || 0 };
+        if (a.html) o.answer_html = a.html;
+        if (a.comments) o.answer_comments = a.comments;
+        if (a.comments_html) o.answer_comments_html = a.comments_html;
+        return o;
+      });
+    }
+    return raw;
+  }
+
   function fromCanvas(questions, info) {
     const fileCourses = new Set();
     const noteFiles = (html) => String(html || '').replace(/\/courses\/(\d+)\/files\//g, (_, c) => { fileCourses.add(Number(c)); return ''; });
@@ -21,19 +39,9 @@
       if (!TYPES[q.question_type]) return Object.assign(leaf, { type: 'unsupported', reason: 'Canvas question type “' + String(q.question_type).replace(/_question$/, '').replace(/_/g, ' ') + '” isn’t supported yet' });
       const html = String(q.question_text || '');
       noteFiles(html);
-      const raw = { question_text: html, question_type: q.question_type, points_possible: leaf.points };
-      COMMENTS.forEach((k) => { if (q[k]) raw[k] = q[k]; });
+      const raw = payloadOf(q);
       const answers = Array.isArray(q.answers) ? q.answers : [];
-      if (answers.length && q.question_type !== 'essay_question' && q.question_type !== 'text_only_question') {
-        raw.answers = answers.map((a) => {
-          noteFiles(a.html);
-          const o = { answer_text: a.text == null ? '' : a.text, answer_weight: a.weight || 0 };
-          if (a.html) o.answer_html = a.html;
-          if (a.comments) o.answer_comments = a.comments;
-          if (a.comments_html) o.answer_comments_html = a.comments_html;
-          return o;
-        });
-      }
+      answers.forEach((a) => noteFiles(a.html));
       const right = answers.map((a, k) => ({ a, k })).filter((x) => x.a.weight > 0);
       const kind = q.question_type;
       leaf.type = kind.replace(/_question$/, '');
@@ -52,5 +60,5 @@
     };
   }
 
-  root.gs2canvasSource = { fromCanvas, TYPES };
+  root.gs2canvasSource = { fromCanvas, payloadOf, TYPES };
 })(typeof window !== 'undefined' ? window : globalThis);

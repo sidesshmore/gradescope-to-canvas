@@ -12,12 +12,16 @@ If you've ever rebuilt an exam in Canvas by hand, you know the drill. Retype eve
 
 1. On Gradescope, open the assignment's **rubric page** and click **Copy quiz for Canvas**. It's the dark tab on the right edge of the page. Tick the questions you want (a whole section at a time works too) and click **Copy**.
 2. Want questions from another Gradescope quiz in the same Canvas quiz? Repeat step 1 on that quiz. Each one is added to what you've already copied.
-3. In Canvas, open the target quiz's **Edit** page, click **Copy or import**, then **Import into this quiz**.
-4. Look over the preview, untick anything you don't want, click **Import**, then reload the page.
+3. In Canvas, open the target quiz's **Edit** page, click **Copy or import**, then **Import into this quiz or a bank**.
+4. Look over the preview. Untick what you don't want, change the order with the arrows, set points (one by one or for all selected), rename a quiz, and choose whether the questions go into this quiz or a question bank. Then click **Import**.
+
+Changed your mind? **Copy or import**, then **Undo an import** removes just the questions that import added and puts back any it replaced. Anything you added by hand is never touched.
 
 Canvas to Canvas works the same way: on the quiz you're copying from, click **Copy or import**, then **Copy from this quiz** and tick the questions. Then open the other quiz and import. You can mix both sources in one import.
 
 The quiz title, settings and publishing are left to you.
+
+If something goes wrong, the message says what happened and what to try, and **Copy diagnostics** gives you a short report (page type, step, error, no quiz content) to paste into an issue.
 
 ## What comes across
 
@@ -29,7 +33,7 @@ The quiz title, settings and publishing are left to you.
 
 Before it copies anything it checks that every question has an answer key, that the points add up and that question numbers are unique. Anything it can't copy (free response, say) is listed as "Not copied" in the preview instead of quietly disappearing.
 
-It never deletes anything. Questions already in the quiz are left alone unless you tick them to be replaced, and if the quiz had other questions, new ones are added at the end without reshuffling yours.
+An import never deletes anything. Questions already in the quiz are left alone unless you tick them to be replaced, and if the quiz had other questions, new ones are added at the end without reshuffling yours.
 
 ## Install
 
@@ -42,10 +46,11 @@ The extension is set up for `canvas.asu.edu` and `*.instructure.com`. If your sc
 
 ## Privacy
 
-Your quiz goes from the Gradescope tab to the Canvas tab through `chrome.storage` and nowhere else. The extension acts through the sessions you're already signed in to. Its only host permission is Gradescope, to download figures, because a web page can't read those itself.
+A short record of what each import created is kept in `chrome.storage` too, so it can be undone. Your quiz goes from the Gradescope tab to the Canvas tab through `chrome.storage` and nowhere else. The extension acts through the sessions you're already signed in to. Its only host permission is Gradescope, to download figures, because a web page can't read those itself.
 
 ## Good to know
 
+- Question banks use the same routes Canvas's own pages use, not the public API, so a Canvas update could break that part. Quizzes use the public API.
 - Canvas **classic** quizzes only, not New Quizzes.
 - It has been tried on one real exam. Select-all questions are supported but only tested on made-up data, so expect some rough edges on other quizzes, and open an issue if you find one.
 

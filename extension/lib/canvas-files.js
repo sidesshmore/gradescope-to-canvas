@@ -18,7 +18,7 @@
       headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-Token': csrf() },
       body: body ? JSON.stringify(body) : undefined,
     });
-    if (!res.ok) throw new Error(method + ' ' + path + ' -> ' + res.status);
+    if (!res.ok) throw await (root.gs2canvasErrors ? root.gs2canvasErrors.httpError(method, path, res) : new Error(method + ' ' + path + ' -> ' + res.status));
     return res.status === 204 ? null : res.json();
   }
 

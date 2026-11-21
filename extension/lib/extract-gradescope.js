@@ -102,8 +102,22 @@
     return top;
   }
 
+  /** Counts of the page features the extractor relies on; goes into the diagnostics, never any text. */
+  function probeGradescope(doc) {
+    const n = (sel) => doc.querySelectorAll(sel).length;
+    return {
+      'Rubric questions': n('.assignmentRubricQuestion'), 'Answer options (radio)': n('.assignmentRubricQuestion--preview input[type=radio]'),
+      'Answer options (checkbox)': n('.assignmentRubricQuestion--preview input[type=checkbox]'), 'Marked correct': n('.assignmentRubricQuestion--preview input:checked'),
+      'Math nodes': n('.katex'), 'Images': n('.markdownText img'), 'Has main': !!doc.querySelector('main'), 'Page title': (doc.title || '').slice(0, 60),
+    };
+  }
+
   function extractGradescopeQuiz(doc) {
     const ctx = { images: [] };
+    if (!doc.querySelector('.assignmentRubricQuestion')) {
+      throw root.gs2canvasErrors.pageError('This isn’t a quiz rubric page', 'No rubric questions were found on this page.',
+        'Open the assignment’s rubric page (the address ends in /rubric/edit) and try again. If you’re already there, Gradescope may have changed its layout.');
+    }
     const header = doc.querySelector('main') ? doc.querySelector('main').textContent.slice(0, 300) : '';
     const flat = Array.from(doc.querySelectorAll('.assignmentRubricQuestion')).map((q) => extractQuestionNode(q, ctx));
     return {
@@ -117,4 +131,5 @@
   }
 
   root.extractGradescopeQuiz = extractGradescopeQuiz;
+  root.probeGradescope = probeGradescope;
 })(typeof window !== 'undefined' ? window : globalThis);

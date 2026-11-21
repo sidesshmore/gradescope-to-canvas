@@ -105,13 +105,13 @@
 
   const csrf = () => { const m = document.cookie.match(/(?:^|; )_csrf_token=([^;]*)/); return m ? decodeURIComponent(m[1]) : ''; };
 
-  async function api(method, path, body) {
+  async function api(method, path, body, accept) {
     const res = await fetch(path, {
       method, credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-Token': csrf() },
+      headers: { 'Content-Type': 'application/json', Accept: accept || 'application/json', 'X-CSRF-Token': csrf() },
       body: body ? JSON.stringify(body) : undefined,
     });
-    if (!res.ok) throw new Error(method + ' ' + path + ' -> ' + res.status);
+    if (!res.ok) throw await (root.gs2canvasErrors ? root.gs2canvasErrors.httpError(method, path, res) : new Error(method + ' ' + path + ' -> ' + res.status));
     return res.status === 204 ? null : res.json(); // reorder answers 204 with no body
   }
 
@@ -128,22 +128,75 @@
     return created;
   }
 
-  /**
-   * Idempotent: questions already in the quiz (matched by question_name) are skipped,
-   * unless listed in opts.update, in which case they are overwritten in place.
-   * Never deletes anything.
-   */
-  async function sync(planned, ids, opts) {
-    opts = opts || {};
+  // --- where questions go: a quiz, or a question bank ---------------------------------
+  const STR_IDS = 'application/json+canvas-string-ids, application/json';
+
+  /** The quiz being edited. Questions are ordered, so reorder() applies. */
+  function quizTarget(ids) {
     const base = '/api/v1/courses/' + ids.courseId + '/quizzes/' + ids.quizId + '/questions';
-    const existing = {};
-    (await listQuestions(ids.courseId, ids.quizId)).forEach((q) => { existing[q.question_name] = q.id; });
+    return {
+      kind: 'quiz', ids, ordered: true, label: 'this quiz',
+      list: () => api('GET', base + '?per_page=100'),
+      create: (question) => api('POST', base, { question }),
+      update: (id, question) => api('PUT', base + '/' + id, { question }),
+      remove: (id) => api('DELETE', base + '/' + id),
+      reorder: (numbers) => reorder(numbers, ids),
+    };
+  }
+
+  /** A course question bank. Not part of the public API: these are the routes Canvas's own pages use. */
+  function bankTarget(courseId, bank) {
+    const root_ = '/courses/' + courseId + '/question_banks/' + bank.id;
+    return {
+      kind: 'bank', ids: { courseId, bankId: bank.id }, ordered: false, label: 'the bank “' + bank.title + '”', bank,
+      async list() {
+        const out = [];
+        for (let page = 1; page <= 50; page++) {
+          const r = await api('GET', root_ + '/questions?page=' + page, null, STR_IDS);
+          (r.questions || []).forEach((x) => { const a = x.assessment_question; out.push(Object.assign({}, a.question_data, { id: a.id, question_name: a.name || (a.question_data || {}).question_name })); });
+          if (!r.pages || page >= r.pages) break;
+        }
+        return out;
+      },
+      create: (question) => api('POST', root_ + '/assessment_questions', { question }, STR_IDS),
+      update: (id, question) => api('PUT', root_ + '/assessment_questions/' + id, { question }, STR_IDS),
+      remove: (id) => api('DELETE', root_ + '/assessment_questions/' + id, null, STR_IDS),
+    };
+  }
+
+  async function listBanks(courseId) {
+    const r = await api('GET', '/courses/' + courseId + '/question_banks.json', null, STR_IDS);
+    return r.map((x) => x.assessment_question_bank).filter((b) => b.workflow_state === 'active' && String(b.context_id) === String(courseId)).map((b) => ({ id: b.id, title: b.title }));
+  }
+  async function createBank(courseId, title) {
+    const r = await api('POST', '/courses/' + courseId + '/question_banks', { assessment_question_bank: { title } }, STR_IDS);
+    const b = r.assessment_question_bank || r; return { id: b.id, title: b.title };
+  }
+  const deleteBank = (courseId, bankId) => api('DELETE', '/courses/' + courseId + '/question_banks/' + bankId, null, STR_IDS);
+
+  /**
+   * Idempotent: questions already at the target (matched by question_name) are skipped,
+   * unless listed in opts.update, in which case they are overwritten in place.
+   * Never deletes anything. `target` is a quizTarget/bankTarget (or quiz ids, for old callers).
+   * opts.onCreated(number, id) and opts.onUpdated(number, id, beforeQuestion) fire as each write
+   * succeeds, so an interrupted import can still be recorded (and undone).
+   */
+  async function sync(planned, target, opts) {
+    opts = opts || {};
+    if (!target.list) target = quizTarget(target);
+    const existing = {}, before = {};
+    (await target.list()).forEach((q) => { existing[q.question_name] = q.id; before[q.question_name] = q; });
     const result = { created: [], updated: [], skipped: [] };
     for (const p of planned) {
       const id = existing[p.number];
       if (id && !(opts.update || []).includes(p.number)) { result.skipped.push(p.number); continue; }
-      if (id) { await api('PUT', base + '/' + id, { question: p.question }); result.updated.push(p.number); }
-      else { const r = await api('POST', base, { question: p.question }); result.created.push(p.number); existing[p.number] = r.id; }
+      if (id) {
+        await target.update(id, p.question); result.updated.push(p.number);
+        if (opts.onUpdated) opts.onUpdated(p.number, id, before[p.number]);
+      } else {
+        const r = await target.create(p.question); result.created.push(p.number); existing[p.number] = r.id;
+        if (opts.onCreated) opts.onCreated(p.number, r.id);
+      }
       if (opts.onProgress) opts.onProgress(p.number);
     }
     return result;
@@ -168,5 +221,5 @@
     return (await listQuestions(ids.courseId, ids.quizId)).map((q) => q.question_name);
   }
 
-  root.gs2canvas = { plan, run, sync, reorder, listQuestions, toHtml, api };
+  root.gs2canvas = { plan, run, sync, reorder, listQuestions, toHtml, api, quizTarget, bankTarget, listBanks, createBank, deleteBank };
 })(typeof window !== 'undefined' ? window : globalThis);
