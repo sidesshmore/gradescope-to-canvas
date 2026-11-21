@@ -26,11 +26,6 @@
     });
   }
 
-  function downloadJson(obj, name) {
-    const a = h('a', { href: URL.createObjectURL(new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' })), download: name });
-    shadow.append(a); a.click(); a.remove();
-  }
-
   // Keep only the chosen questions; a group stays only if one of its questions is chosen.
   // Group and total points describe the whole quiz, so they are dropped from the copy.
   function filterQuiz(quiz, numbers) {
@@ -160,10 +155,7 @@
             : 'Copy from another quiz to add more, or open the Canvas quiz’s Edit page and choose ',
           h('b', {}, 'Import from Gradescope'), '.'),
         ],
-        actions: [
-          button('Save backup file', { onclick: () => downloadJson({ sources: next.map((s) => ({ title: s.title, quiz: s.quiz })) }, 'gradescope-quiz.json') }),
-          closeButton('Done'),
-        ],
+        actions: [closeButton('Done')],
       });
     }
 

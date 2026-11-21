@@ -76,6 +76,11 @@
   .choice.row { display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: default; } .choice.row:hover { border-color: var(--line); }
   .choice:disabled { cursor: default; opacity: .6; }
   .choice .t { display: block; font-weight: 600; } .choice .q { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; }
+  .tag { margin-left: 6px; padding: 0 6px; border-radius: 4px; background: #F0F1F3; color: var(--muted); font-size: 11.5px; }
+  .destline { margin: 0; } .destline .linkbtn { margin-left: 2px; }
+  .linkbtn.first { margin-left: 0; }
+  details.sect { margin: 0; padding: 8px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  details.sect > summary { color: var(--ink); font-size: 13px; } details.sect[open] > summary { margin-bottom: 6px; }
   details { margin-top: 10px; } summary { cursor: pointer; color: var(--muted); font-size: 12px; }
   pre { margin: 8px 0 0; padding: 10px 12px; max-height: 160px; overflow: auto; background: #F7F8FA; border: 1px solid var(--line); border-radius: 8px; font: 11.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; word-break: break-word; }
   input[type=number], input[type=text], select { height: 28px; padding: 0 8px; border: 1px solid #CBD0D7; border-radius: 6px; font: inherit; font-size: 12.5px; color: var(--ink); background: #fff; }

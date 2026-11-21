@@ -72,6 +72,11 @@
       ],
       actions: [closeButton('Close')],
     });
+    if (n) {
+      // a quiet way to start over, only when there is something to clear
+      const clear = h('button', { class: 'linkbtn first', type: 'button', onclick: async () => { await chrome.storage.local.remove('basket'); openHub(); } }, 'Clear them');
+      shadow.querySelector('.body').append(h('p', { class: 'muted small' }, 'Done with the copied questions? ', clear));
+    }
   }
 
   // ---- copy from this quiz -------------------------------------------------------
@@ -151,7 +156,7 @@
       });
     }
     assignPrefixes(sources);
-    S = { sources, tick: new Map(), ctx: new Map(), renaming: null, banks: null, existing: null, dest: { mode: 'quiz', bankId: '__new', title: (sources[0].title || 'Imported questions') } };
+    S = { sources, tick: new Map(), ctx: new Map(), edit: false, showDest: false, renaming: null, banks: null, existing: null, dest: { mode: 'quiz', bankId: '__new', title: (sources[0].title || 'Imported questions') } };
     try { await loadExisting(); } catch (e) { return fail(e, 'Reading this quiz’s questions'); }
     render();
   }
@@ -230,30 +235,36 @@
     const mover = (label, text, disabled, fn) => h('button', { class: 'mv', type: 'button', 'aria-label': label, title: label, onclick: fn, ...(disabled ? { disabled: true } : {}) }, text);
     const saveAnd = (fn) => async () => { fn(); try { await putBasket(sources); } catch (e) { /* edits still apply this session */ } render(); };
 
+    const hasStatus = allNames.some((n) => existingNames.has(n));
+    const canMove = S.edit && !isBank;
+    const ncols = 3 + (hasStatus ? 1 : 0) + (canMove ? 1 : 0);
     sources.forEach((src, si) => {
       const leaves = orderedLeaves(src);
-      let nameCell;
-      if (S.renaming === src.id) {
-        const input = h('input', { type: 'text', value: src.title || '', 'aria-label': 'Name for this quiz', maxlength: 60 });
-        let finished = false;
-        const commit = (keep) => {
-          if (finished) return; finished = true;
-          const v = input.value.trim();
-          if (keep && v) { src.title = v; assignPrefixes(sources); putBasket(sources).catch(() => {}); }
-          S.renaming = null; render();
-        };
-        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') commit(true); if (e.key === 'Escape') commit(false); });
-        input.addEventListener('blur', () => commit(true));
-        nameCell = [input];
-        setTimeout(() => { input.focus(); input.select(); }, 0);
-      } else nameCell = [h('span', { class: 'srcname' }, src.title || 'Quiz ' + src.id)];
-      rows.push(h('tr', { class: 'grp' },
-        h('td', { colspan: 7 }, ...nameCell, ' ',
-          h('span', { class: 'muted' }, plural(leaves.length, 'question') + ', copied ' + when(src.capturedAt)), ' ',
-          h('button', { class: 'linkbtn', type: 'button', onclick: () => { S.renaming = src.id; render(); } }, 'Rename'),
-          h('button', { class: 'linkbtn', type: 'button', onclick: () => removeSource(src.id) }, 'Remove'),
-          sources.length > 1 ? [mover('Move this quiz up', '↑', si === 0, saveAnd(() => { [sources[si - 1], sources[si]] = [sources[si], sources[si - 1]]; })),
-            mover('Move this quiz down', '↓', si === sources.length - 1, saveAnd(() => { [sources[si + 1], sources[si]] = [sources[si], sources[si + 1]]; }))] : null)));
+      // A name row per quiz, only when it says something: several quizzes, or while editing.
+      if (sources.length > 1 || S.edit) {
+        let nameCell;
+        if (S.renaming === src.id) {
+          const input = h('input', { type: 'text', value: src.title || '', 'aria-label': 'Name for this quiz', maxlength: 60 });
+          let finished = false;
+          const commit = (keep) => {
+            if (finished) return; finished = true;
+            const v = input.value.trim();
+            if (keep && v) { src.title = v; assignPrefixes(sources); putBasket(sources).catch(() => {}); }
+            S.renaming = null; render();
+          };
+          input.addEventListener('keydown', (e) => { if (e.key === 'Enter') commit(true); if (e.key === 'Escape') commit(false); });
+          input.addEventListener('blur', () => commit(true));
+          nameCell = [input];
+          setTimeout(() => { input.focus(); input.select(); }, 0);
+        } else nameCell = [h('span', { class: 'srcname' }, src.title || 'Quiz ' + src.id)];
+        rows.push(h('tr', { class: 'grp' },
+          h('td', { colspan: ncols + 1 }, ...nameCell, ' ', h('span', { class: 'muted' }, plural(leaves.length, 'question')),
+            S.edit ? [' ',
+              h('button', { class: 'linkbtn', type: 'button', onclick: () => { S.renaming = src.id; render(); } }, 'Rename'),
+              h('button', { class: 'linkbtn', type: 'button', onclick: () => removeSource(src.id) }, 'Remove'),
+              sources.length > 1 ? [mover('Move this quiz up', '↑', si === 0, saveAnd(() => { [sources[si - 1], sources[si]] = [sources[si], sources[si - 1]]; })),
+                mover('Move this quiz down', '↓', si === sources.length - 1, saveAnd(() => { [sources[si + 1], sources[si]] = [sources[si], sources[si + 1]]; }))] : null] : null)));
+      }
       leaves.forEach((q, qi) => {
         const ok = isOk(q);
         const name = src.prefix + q.number;
@@ -277,13 +288,12 @@
         } else status = h('span', { class: 'flag-err' }, 'Not copied');
         rows.push(h('tr', {},
           h('td', { class: 'pick' }, box),
-          h('td', { class: 'indent' }, q.number, q.excerpt ? [' ', h('span', { class: 'muted' }, q.excerpt)] : null),
+          h('td', {}, q.number, q.excerpt ? [' ', h('span', { class: 'muted' }, q.excerpt)] : null, includes ? [' ', h('span', { class: 'tag' }, includes)] : null),
           h('td', {}, ok ? (q.raw ? (q.answerChips ? chips(q.answerChips) : h('span', { class: 'muted' }, q.answerText)) : chips(answerLetters(q))) : ''),
-          h('td', { class: 'num' }, ptsEl),
-          h('td', { class: 'muted' }, includes),
-          h('td', {}, status),
-          h('td', { class: 'mvcell' }, isBank ? null : [mover('Move up', '↑', qi === 0, saveAnd(() => { const nums = leaves.map((x) => x.number); [nums[qi - 1], nums[qi]] = [nums[qi], nums[qi - 1]]; src.order = nums; })),
-            mover('Move down', '↓', qi === leaves.length - 1, saveAnd(() => { const nums = leaves.map((x) => x.number); [nums[qi + 1], nums[qi]] = [nums[qi], nums[qi + 1]]; src.order = nums; }))])));
+          h('td', { class: 'num' }, S.edit && ptsEl ? ptsEl : (q.points == null && pointsOf(src, q) == null ? '' : String(pointsOf(src, q)))),
+          hasStatus || !ok ? h('td', {}, status) : null,
+          canMove ? h('td', { class: 'mvcell' }, [mover('Move up', '↑', qi === 0, saveAnd(() => { const nums = leaves.map((x) => x.number); [nums[qi - 1], nums[qi]] = [nums[qi], nums[qi - 1]]; src.order = nums; })),
+            mover('Move down', '↓', qi === leaves.length - 1, saveAnd(() => { const nums = leaves.map((x) => x.number); [nums[qi + 1], nums[qi]] = [nums[qi], nums[qi + 1]]; src.order = nums; }))]) : null));
       });
     });
     const allBox = h('input', { type: 'checkbox', 'aria-label': 'Select all new questions', checked: picks.filter((p) => !p.clash).every((p) => p.box.checked) });
@@ -318,35 +328,38 @@
     };
 
     function existingNote() {
-      if (!existing.length) return null;
-      const at = isBank ? 'The bank' : 'This quiz';
-      if (!clash) return at + ' already has ' + plural(existing.length, 'question') + '. None share a name with the incoming ones, so the new questions are added alongside them. Nothing is deleted.';
-      if (clash === allNames.length && existing.length === clash) return at + ' already contains all ' + allNames.length + ' of these questions. They’re left alone unless you tick them in the table to replace them. Nothing is deleted.';
-      return at + ' already has ' + plural(existing.length, 'question') + '. ' + plural(clash, 'has a name that matches', 'have names that match') + ' an incoming question and ' + (clash === 1 ? 'is' : 'are') + ' left alone unless you tick ' + (clash === 1 ? 'it' : 'them') + ' in the table to replace. Nothing is deleted.';
+      if (!clash) return null;
+      if (clash === allNames.length) return (allNames.length === 1 ? 'This question is' : 'All ' + allNames.length + ' questions are') + ' already ' + (isBank ? 'in the bank' : 'in this quiz') + ', so ' + (allNames.length === 1 ? 'it’s' : 'they’re') + ' skipped. Tick ' + (allNames.length === 1 ? 'it' : 'one') + ' in the list to replace ' + (allNames.length === 1 ? 'it' : 'it') + '.';
+      return plural(clash, 'question is', 'questions are') + ' already ' + (isBank ? 'in the bank' : 'in this quiz') + ' and skipped. Tick one in the list to replace it.';
     }
+    const destLabel = !isBank ? 'this quiz' : dest.bankId === '__new' ? 'a new question bank' : 'the bank “' + ((S.banks.find((b) => String(b.id) === String(dest.bankId)) || {}).title || '') + '”';
     const totalPts = picks.reduce((a, p) => a + (Number(pointsOf(p.src, p.q)) || 0), 0);
+    const repeated = ctxBoxes.filter((c) => c.el.checked).length;
     const body = [
       summary({ supported: picks.length, points: totalPts, images: sources.reduce((a, s) => a + s.images.length, 0), equations: reports.reduce((a, r) => a + r.equations, 0) }),
-      sources.length > 1 ? h('p', { class: 'muted small' }, 'From ' + sources.length + ' quizzes, in the order shown. Use the arrows to change the order.') : null,
       ...warnings.map((w) => notice('warn', w.text)),
-      h('div', { class: 'dest' }, h('h3', {}, 'Where to add them'),
-        radio('quiz', 'This quiz', 'The questions go into the quiz you have open.'),
-        radio('bank', 'A question bank', 'Banks keep the questions for reuse in other quizzes and terms. They aren’t ordered.'),
-        isBank ? h('div', { class: 'fields' }, bankSel, bankName) : null),
+      // where they go: one quiet line; the choice only opens on request (or once a bank is picked)
+      (S.showDest || isBank)
+        ? h('div', { class: 'dest' }, h('h3', {}, 'Add to'),
+            radio('quiz', 'This quiz', 'The quiz you have open.'),
+            radio('bank', 'A question bank', 'Reusable in other quizzes and terms. Banks aren’t ordered.'),
+            isBank ? h('div', { class: 'fields' }, bankSel, bankName) : null)
+        : h('p', { class: 'destline' }, 'Adding to ', h('b', {}, destLabel), ' ', h('button', { class: 'linkbtn', type: 'button', onclick: () => { S.showDest = true; render(); } }, 'Change')),
       existingNote() ? notice('info', existingNote()) : null,
-      ctxBoxes.length ? h('div', {},
-        h('h3', {}, 'Shared text'),
+      ctxBoxes.length ? h('details', { class: 'sect' },
+        h('summary', {}, 'Shared text' + (ctxBoxes.length ? ': repeated on ' + (repeated === ctxBoxes.length ? 'all ' : repeated + ' of ') + plural(ctxBoxes.length, 'section') : '')),
         h('p', { class: 'muted small' }, 'Canvas has no shared-text block, so text that belongs to a whole section can be copied onto each of its questions.'),
         ...ctxBoxes.map(({ si, g, el }) => h('label', { class: 'opt' }, el, h('span', {},
-          h('span', { class: 't' }, 'Repeat ' + (sources.length > 1 ? sources[si].title + ' ' : '') + g.number + (g.title ? ' (' + g.title + ')' : '') + ' text on its ' + plural(g.children.length, 'question')),
+          h('span', { class: 't' }, (sources.length > 1 ? sources[si].title + ' ' : '') + g.number + (g.title ? ' (' + g.title + ')' : '') + ' on its ' + plural(g.children.length, 'question')),
           h('span', { class: 'q' }, g.prompt.replace(/\s+/g, ' ')))))) : null,
-      h('div', {}, h('div', { class: 'qhead' }, h('h3', {}, 'Questions'), countEl),
-        h('div', { class: 'tools' }, 'Set the points of the selected questions to ', bulk, button('Apply', { onclick: applyBulk })),
-        h('div', { class: 'tablewrap' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', { class: 'pick' }, allBox), h('th', {}, 'Question'), h('th', {}, 'Answer'), h('th', { class: 'num' }, 'Points'), h('th', {}, 'Includes'), h('th', {}, 'Status'), h('th', {}, ''))), h('tbody', {}, rows)))),
-      h('p', { class: 'muted small' }, 'Figures are stored in a hidden course folder (' + window.gs2canvasFiles.FOLDER + '). The quiz title, settings and publishing aren’t changed. You can undo this import afterwards from Copy or import.'),
+      h('div', {}, h('div', { class: 'qhead' }, h('h3', {}, 'Questions'), h('span', {}, countEl, ' ',
+          h('button', { class: 'linkbtn', type: 'button', onclick: () => { S.edit = !S.edit; S.renaming = null; render(); } }, S.edit ? 'Done editing' : 'Edit order and points'))),
+        S.edit ? h('div', { class: 'tools' }, 'Give every selected question ', bulk, ' points ', button('Apply', { onclick: applyBulk })) : null,
+        h('div', { class: 'tablewrap' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', { class: 'pick' }, allBox), h('th', {}, 'Question'), h('th', {}, 'Answer'), h('th', { class: 'num' }, 'Points'), hasStatus ? h('th', {}, 'Status') : null, canMove ? h('th', {}, '') : null)), h('tbody', {}, rows)))),
+      h('p', { class: 'muted small' }, (sources.some((x) => x.images.length) ? 'Figures are saved in a hidden course folder. ' : '') + 'You can undo this import afterwards.'),
     ];
     refresh();
-    dlg.render({ title: 'Import', subtitle: isBank ? 'Into a question bank' : 'Into this quiz', body, actions: [button('Cancel', { onclick: dlg.close }), importBtn] });
+    dlg.render({ title: 'Import', body, actions: [button('Cancel', { onclick: dlg.close }), importBtn] });
 
     // ---- run -------------------------------------------------------------------------
     async function run() {
@@ -439,15 +452,11 @@
             h('p', { class: 'lead' }, h('b', {}, String(result.created.length)), ' created, ', h('b', {}, String(result.updated.length)), ' replaced, ', h('b', {}, String(result.skipped.length)), ' left alone.'),
             orderNote ? notice('warn', orderNote) : null,
             isBank
-              ? h('p', {}, 'Find them under Question Banks in the course (', h('a', { href: '/courses/' + ids.courseId + '/question_banks/' + target.bank.id, target: '_blank', rel: 'noopener' }, 'open the bank'), '). In a quiz, use Find Questions to pull from it.')
-              : h('p', {}, 'Reload the page to see the questions in the editor. Then set the quiz title and settings, and publish when you’re ready.'),
+              ? h('p', {}, 'They’re in the bank now. ', h('a', { href: '/courses/' + ids.courseId + '/question_banks/' + target.bank.id, target: '_blank', rel: 'noopener' }, 'Open the bank'), '. In a quiz, use Find Questions to pull from it.')
+              : h('p', {}, 'Reload the page to see them in the editor. The title, settings and publishing are yours to set.'),
+            result.created.length + result.updated.length ? h('p', { class: 'muted small' }, 'Not what you wanted? ', h('button', { class: 'linkbtn first', type: 'button', onclick: () => confirmUndo(histId, openHub) }, 'Undo this import')) : null,
           ],
-          actions: [
-            result.created.length + result.updated.length ? button('Undo this import', { onclick: () => confirmUndo(histId, openHub) }) : null,
-            button('Clear copied questions', { onclick: async () => { await chrome.storage.local.remove('basket'); dlg.close(); } }),
-            closeButton('Close'),
-            isBank ? null : button('Reload page', { variant: 'primary', onclick: () => location.reload() }),
-          ],
+          actions: isBank ? [closeButton('Done', true)] : [closeButton('Close'), button('Reload page', { variant: 'primary', onclick: () => location.reload() })],
         });
       } catch (e) {
         try { await history.done(); if (histId) await history.discardIfEmpty(histId); } catch (_) { /* best effort */ }
