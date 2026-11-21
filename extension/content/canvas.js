@@ -452,7 +452,7 @@
       } catch (e) {
         try { await history.done(); if (histId) await history.discardIfEmpty(histId); } catch (_) { /* best effort */ }
         const view = ui.failureView({ error: e, step, extra, actions: [closeButton('Close'), button('Try again', { variant: 'primary', onclick: () => run() })] });
-        if (created) view.body.splice(2, 0, h('p', { class: 'muted' }, plural(created, 'question') + (created === 1 ? ' was' : ' were') + ' created before it stopped.' Trying again skips them, or use Undo an import to remove them.'));
+        if (created) view.body.splice(2, 0, h('p', { class: 'muted' }, plural(created, 'question') + (created === 1 ? ' was' : ' were') + ' created before it stopped. Trying again skips them, or use Undo an import to remove them.'));
         dlg.render(view);
       }
     }

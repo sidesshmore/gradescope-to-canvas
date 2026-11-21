@@ -298,3 +298,14 @@ console.log('manifest tests passed');
   assert.strictEqual(probe['Rubric questions'], 2);
   console.log('page error tests passed');
 })();
+
+// every script the extension loads must at least parse (content scripts are not otherwise run by these tests)
+(() => {
+  const vm = require('vm');
+  const dir = path.join(__dirname, '..', 'extension');
+  const manifest = JSON.parse(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8'));
+  const files = new Set([manifest.background.service_worker]);
+  manifest.content_scripts.forEach((c) => c.js.forEach((f) => files.add(f)));
+  files.forEach((f) => { try { new vm.Script(fs.readFileSync(path.join(dir, f), 'utf8'), { filename: f }); } catch (e) { assert.fail(f + ' does not parse: ' + e.message); } });
+  console.log('script syntax tests passed');
+})();
