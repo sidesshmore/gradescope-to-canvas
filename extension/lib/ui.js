@@ -70,6 +70,10 @@
   table { border-collapse: collapse; width: 100%; font-size: 12.5px; font-variant-numeric: tabular-nums; }
   th { position: sticky; top: 0; background: #fff; text-align: left; font-weight: 550; color: var(--muted); font-size: 12px; padding: 7px 12px; border-bottom: 1px solid var(--line); }
   td { padding: 6px 12px; border-bottom: 1px solid #F0F1F3; } tr:last-child td { border-bottom: 0; }
+  .choice { display: block; width: 100%; text-align: left; margin: 0 0 8px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; background: #fff; font: inherit; color: inherit; cursor: pointer; }
+  .choice:hover:not(:disabled) { border-color: var(--ink); }
+  .choice:disabled { cursor: default; opacity: .6; }
+  .choice .t { display: block; font-weight: 600; } .choice .q { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; }
   tr.grp td { background: #F7F8FA; font-weight: 550; border-bottom: 1px solid var(--line); }
   td.indent { padding-left: 22px; }
   .srcname { font-weight: 650; }

@@ -26,7 +26,7 @@
         "https://canvas.asu.edu/courses/*/quizzes/*/edit*",
         "https://*.instructure.com/courses/*/quizzes/*/edit*"
       ],
-      "js": ["lib/ui.js", "lib/validate.js", "lib/import-canvas.js", "lib/canvas-files.js", "content/canvas.js"],
+      "js": ["lib/ui.js", "lib/validate.js", "lib/import-canvas.js", "lib/canvas-source.js", "lib/canvas-files.js", "content/canvas.js"],
       "run_at": "document_idle"
     }
   ]

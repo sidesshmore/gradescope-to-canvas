@@ -190,3 +190,36 @@ console.log('manifest tests passed');
   assert.strictEqual(b[0].question.position, 3);
   console.log('basket tests passed');
 })();
+
+// copying between Canvas quizzes
+(() => {
+  require('../extension/lib/canvas-source.js');
+  const { fromCanvas } = globalThis.gs2canvasSource;
+  const qs = [
+    { id: 2, position: 2, question_name: 'Question', question_type: 'true_false_question', points_possible: 1, question_text: '<p>Sky is blue</p>', answers: [{ text: 'True', weight: 100 }, { text: 'False', weight: 0 }] },
+    { id: 1, position: 1, question_name: 'Question', question_type: 'multiple_choice_question', points_possible: 3, question_text: '<p>Pick <img class="equation_image" src="/equation_images/x"> and <img src="/courses/9/files/5/preview"></p>',
+      correct_comments: 'Nice', answers: [{ id: 7, text: 'a', html: '', weight: 0 }, { id: 8, text: 'b', html: '<b>b</b>', weight: 100, comments: 'yes' }] },
+    { id: 3, position: 3, question_type: 'matching_question', points_possible: 2, question_text: 'm', answers: [] },
+    { id: 4, position: 4, question_type: 'essay_question', points_possible: 5, question_text: 'Explain' },
+  ];
+  const src = fromCanvas(qs, { courseId: 9, quizId: 4, title: 'Quiz A' });
+  const L = src.quiz.sections;
+  assert.strictEqual(src.id, 'canvas-9-4');
+  assert.deepStrictEqual(L.map((q) => q.number), ['1', '2', '3', '4'], 'ordered by position, numbered uniquely');
+  assert.deepStrictEqual(L[0].answerChips, ['B']);
+  assert.strictEqual(L[0].includes, 'figure, math');
+  assert.strictEqual(L[1].answerText, 'True');
+  assert.ok(!L[2].raw && L[2].type === 'unsupported' && /matching/.test(L[2].reason), 'unsupported types are reported, not copied');
+  assert.deepStrictEqual(src.fileCourses, [9]);
+  const v = validateQuiz(src.quiz, { subset: true });
+  assert.ok(!v.blocking && v.supported === 3 && v.points === 9, 'raw questions validate without choice checks');
+  assert.ok(v.warnings.some((w) => /SKIPPED/.test(w.text)), 'the unsupported one is flagged');
+  const pl = gs2canvas.plan(src.quiz, { only: ['1', '2', '4'], namePrefix: 'Quiz A: ' });
+  assert.deepStrictEqual(pl.map((p) => p.question.question_name), ['Quiz A: 1', 'Quiz A: 2', 'Quiz A: 4']);
+  assert.strictEqual(pl[0].question.question_type, 'multiple_choice_question');
+  assert.deepStrictEqual(pl[0].question.answers[1], { answer_text: 'b', answer_weight: 100, answer_html: '<b>b</b>', answer_comments: 'yes' });
+  assert.strictEqual(pl[0].question.correct_comments, 'Nice');
+  assert.strictEqual(pl[2].question.answers, undefined, 'essay has no answers');
+  assert.strictEqual(pl[1].question.position, 2);
+  console.log('canvas source tests passed');
+})();

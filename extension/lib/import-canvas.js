@@ -71,6 +71,11 @@
       const kids = sec.type === 'group' ? sec.children : [sec];
       kids.forEach((q) => {
         if (opts.only && !opts.only.includes(q.number)) return;
+        if (q.raw) { // a question copied from another Canvas quiz: re-create it as it was
+          const nm = (opts.namePrefix || '') + q.number;
+          questions.push({ number: nm, question: Object.assign({}, q.raw, { position: questions.length + 1 + (opts.positionOffset || 0), question_name: nm }) });
+          return;
+        }
         if (q.type !== 'multiple_choice' && q.type !== 'multiple_answers') {
           questions.skipped.push({ number: q.number, reason: q.reason || ('unsupported type: ' + q.type) });
           return;

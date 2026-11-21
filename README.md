@@ -12,8 +12,10 @@ If you've ever rebuilt an exam in Canvas by hand, you know the drill. Retype eve
 
 1. On Gradescope, open the assignment's **rubric page** and click **Copy quiz for Canvas**. It's the dark tab on the right edge of the page. Tick the questions you want (a whole section at a time works too) and click **Copy**.
 2. Want questions from another Gradescope quiz in the same Canvas quiz? Repeat step 1 on that quiz. Each one is added to what you've already copied.
-3. In Canvas, open the target quiz's **Edit** page and click **Import from Gradescope**.
+3. In Canvas, open the target quiz's **Edit** page, click **Copy or import**, then **Import into this quiz**.
 4. Look over the preview, untick anything you don't want, click **Import**, then reload the page.
+
+Canvas to Canvas works the same way: on the quiz you're copying from, click **Copy or import**, then **Copy from this quiz** and tick the questions. Then open the other quiz and import. You can mix both sources in one import.
 
 The quiz title, settings and publishing are left to you.
 
@@ -22,6 +24,7 @@ The quiz title, settings and publishing are left to you.
 - Multiple-choice and select-all questions, with the correct answers and point values.
 - Math, as Canvas equations. Code that was typed as math (SQL, in the exam this was built on) becomes a proper code block.
 - Figures, uploaded to a hidden folder in the course files so students can't browse them.
+- Questions copied from another Canvas quiz come across as they were: multiple choice, select-all, true/false, fill in the blank, essay and text-only, with their answers, points and feedback. Other types (matching, numerical and so on) are listed as not copied. Figures that live in a different course won't display in the new one.
 - Text shared by a whole section, like a scenario or a schema. Canvas has no shared-text block, so you choose whether to repeat it on each question. Short generic instructions are left off by default.
 
 Before it copies anything it checks that every question has an answer key, that the points add up and that question numbers are unique. Anything it can't copy (free response, say) is listed as "Not copied" in the preview instead of quietly disappearing.

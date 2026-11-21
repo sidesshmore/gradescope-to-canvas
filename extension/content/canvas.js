@@ -12,17 +12,97 @@
   const { shadow } = mount('gs2canvas-canvas');
   const dlg = ui.dialog(shadow);
 
-  shadow.append(ui.launcher('Import from Gradescope', openPanel));
+  shadow.append(ui.launcher('Copy or import', openHub));
 
   const b64ToBytes = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
   // A short generic instruction ("Read each question carefully...") is noise when repeated on
   // every question; a scenario or schema (long, or with a figure) must be repeated.
   const defaultRepeat = (g) => g.prompt.length >= 120 || /\[\[image:/.test(g.prompt);
   const answerLetters = (q) => q.choices.map((c, i) => (c.correct ? 'ABCDEFGHIJ'[i] : '')).filter(Boolean);
-  const isOk = (q) => q.type === 'multiple_choice' || q.type === 'multiple_answers';
+  const isOk = (q) => !!q.raw || q.type === 'multiple_choice' || q.type === 'multiple_answers';
+  const countLeaves = (quiz) => leavesOf(quiz).length;
   const leavesOf = (quiz) => quiz.sections.flatMap((s) => (s.type === 'group' ? s.children : [s]));
   const when = (iso) => new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
   const closeButton = (label, primary) => button(label || 'Close', { variant: primary ? 'primary' : undefined, onclick: dlg.close });
+
+  // Start screen: import what has been copied, or copy this quiz's questions.
+  async function openHub() {
+    let basket = null;
+    try { basket = (await chrome.storage.local.get('basket')).basket; } catch (e) { /* treated as empty */ }
+    const sources = (basket && basket.sources) || [];
+    const n = sources.reduce((a, x) => a + countLeaves(x.quiz), 0);
+    const choice = (title, text, onclick, disabled) => h('button', { class: 'choice', type: 'button', onclick, ...(disabled ? { disabled: true } : {}) }, h('span', { class: 't' }, title), h('span', { class: 'q' }, text));
+    dlg.render({
+      title: 'Copy or import',
+      body: [
+        choice('Import into this quiz', n ? plural(n, 'question') + ' copied from ' + plural(sources.length, 'quiz', 'quizzes') + ' are waiting.' : 'Nothing has been copied yet. Copy from Gradescope or from another Canvas quiz first.', openPanel, !n),
+        choice('Copy from this quiz', 'Choose questions in this quiz to paste into another Canvas quiz.', copyFromHere),
+      ],
+      actions: [closeButton('Close')],
+    });
+  }
+
+  async function copyFromHere() {
+    dlg.render({ title: 'Copy from this quiz', body: [h('p', { class: 'muted' }, 'Reading this quiz’s questions…')], locked: true });
+    let questions;
+    try { questions = await window.gs2canvas.listQuestions(ids.courseId, ids.quizId); }
+    catch (e) { return dlg.render({ title: 'Couldn’t read this quiz', body: [notice('err', String((e && e.message) || e))], actions: [closeButton('Close', true)] }); }
+    const titleEl = document.querySelector('#quiz_title');
+    const title = ((titleEl && titleEl.value) || '').trim() || 'Canvas quiz ' + ids.quizId;
+    const src = window.gs2canvasSource.fromCanvas(questions, { title, courseId: ids.courseId, quizId: ids.quizId, url: location.origin + location.pathname.replace(/\/edit.*/, '') });
+    const leaves = src.quiz.sections;
+    if (!leaves.length) {
+      return dlg.render({ title: 'This quiz has no questions', body: [h('p', {}, 'Add or import questions first, then copy them from here.')], actions: [closeButton('Close', true)] });
+    }
+    let basket = null;
+    try { basket = (await chrome.storage.local.get('basket')).basket; } catch (e) { /* treated as empty */ }
+    const sources = (basket && basket.sources) || [];
+    const picks = [];
+    const rows = leaves.map((q) => {
+      const ok = isOk(q);
+      let box = null;
+      if (ok) { box = h('input', { type: 'checkbox', 'aria-label': 'Copy question ' + q.number, checked: true }); picks.push({ q, el: box }); box.addEventListener('change', refresh); }
+      return h('tr', {},
+        h('td', { class: 'pick' }, box),
+        h('td', {}, q.number, ' ', h('span', { class: 'muted' }, q.excerpt)),
+        h('td', {}, q.answerChips ? q.answerChips.map((l, i) => [i ? ' ' : null, h('span', { class: 'ans' }, l)]) : h('span', { class: 'muted' }, ok ? q.answerText : '')),
+        h('td', { class: 'num' }, q.points == null ? '' : String(q.points)),
+        h('td', {}, ok ? h('span', { class: 'muted' }, q.includes) : h('span', { class: 'flag-err' }, 'Can’t be copied')));
+    });
+    const countEl = h('span', { class: 'muted small' }, '');
+    const allBox = h('input', { type: 'checkbox', 'aria-label': 'Select all questions', checked: true });
+    const copyBtn = button('', { variant: 'primary', onclick: () => store() });
+    function refresh() {
+      const n = picks.filter((p) => p.el.checked).length;
+      countEl.textContent = n + ' of ' + picks.length + ' selected';
+      copyBtn.disabled = n === 0;
+      copyBtn.textContent = n === 0 ? 'Select questions to copy' : 'Copy ' + plural(n, 'question');
+      allBox.checked = n === picks.length; allBox.indeterminate = n > 0 && n < picks.length;
+    }
+    allBox.addEventListener('change', () => { picks.forEach((p) => { p.el.checked = allBox.checked; }); refresh(); });
+    refresh();
+
+    async function store() {
+      const keep = new Set(picks.filter((p) => p.el.checked).map((p) => p.q.number));
+      const mine = Object.assign({}, src, { quiz: Object.assign({}, src.quiz, { sections: leaves.filter((q) => keep.has(q.number)) }) });
+      const next = sources.some((x) => x.id === mine.id) ? sources.map((x) => (x.id === mine.id ? mine : x)) : sources.concat(mine);
+      try { await chrome.storage.local.set({ basket: { version: 2, sources: next } }); }
+      catch (e) { return dlg.render({ title: 'Couldn’t save the copy', body: [notice('err', String((e && e.message) || e))], actions: [closeButton('Close', true)] }); }
+      const total = next.reduce((a, x) => a + countLeaves(x.quiz), 0);
+      dlg.render({
+        title: 'Questions copied', subtitle: title,
+        body: [h('p', { class: 'lead' }, h('b', {}, String(keep.size)), ' ' + (keep.size === 1 ? 'question' : 'questions') + ' copied from this quiz.'),
+          h('p', {}, (next.length > 1 ? 'Your copy now holds ' + plural(total, 'question') + ' from ' + next.length + ' quizzes. ' : '') + 'Open the other quiz’s Edit page and choose ', h('b', {}, 'Copy or import'), ', then ', h('b', {}, 'Import into this quiz'), '.')],
+        actions: [closeButton('Done', true)],
+      });
+    }
+    dlg.render({
+      title: 'Copy from this quiz', subtitle: title,
+      body: [h('div', {}, h('div', { class: 'qhead' }, h('h3', {}, 'Questions'), countEl),
+        h('div', { class: 'tablewrap tall' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', { class: 'pick' }, allBox), h('th', {}, 'Question'), h('th', {}, 'Answer'), h('th', { class: 'num' }, 'Points'), h('th', {}, 'Includes'))), h('tbody', {}, rows))))],
+      actions: [button('Back', { onclick: openHub }), copyBtn],
+    });
+  }
 
   async function openPanel() {
     dlg.render({ title: 'Import from Gradescope', body: [h('p', { class: 'muted' }, 'Checking this quiz…')], locked: true });
@@ -32,7 +112,7 @@
     if (!sources.length) {
       return dlg.render({
         title: 'Nothing to import yet',
-        body: [h('p', {}, 'Open a quiz’s rubric page on Gradescope, choose ', h('b', {}, 'Copy quiz for Canvas'), ', pick the questions you want, then come back here.')],
+        body: [h('p', {}, 'Copy questions from a Gradescope rubric page (', h('b', {}, 'Copy quiz for Canvas'), ') or from another Canvas quiz (', h('b', {}, 'Copy from this quiz'), '), then come back here.')],
         actions: [closeButton('Close', true)],
       });
     }
@@ -57,6 +137,8 @@
       warnings: reports.flatMap((r, i) => r.warnings.map((w) => ({ level: w.level, text: (sources.length > 1 ? sources[i].title + ': ' : '') + w.text }))),
     };
     report.images = sources.reduce((a, s) => a + s.images.length, 0);
+
+    sources.forEach((x) => { if ((x.fileCourses || []).some((c) => c !== ids.courseId)) report.warnings.push({ level: 'warn', text: (x.title || 'A copied quiz') + ': some figures are stored in another course, so they won’t show in this one.' }); });
 
     let existing;
     try { existing = await window.gs2canvas.listQuestions(ids.courseId, ids.quizId); }
@@ -103,7 +185,7 @@
         const ok = isOk(q);
         const name = src.prefix + q.number;
         const text = JSON.stringify([q.prompt, q.choices]);
-        const includes = [/\[\[image:/.test(text) ? 'figure' : '', /\\\\\(/.test(text) ? 'math' : '', /```/.test(text) ? 'code' : ''].filter(Boolean).join(', ');
+        const includes = q.raw ? q.includes : [/\[\[image:/.test(text) ? 'figure' : '', /\\\\\(/.test(text) ? 'math' : '', /```/.test(text) ? 'code' : ''].filter(Boolean).join(', ');
         const isClash = ok && existingNames.has(name);
         let box = null, status;
         if (ok) {
@@ -114,8 +196,8 @@
         } else status = h('span', { class: 'flag-err' }, 'Not copied');
         rows.push(h('tr', {},
           h('td', { class: 'pick' }, box),
-          h('td', { class: 'indent' }, q.number),
-          h('td', {}, answerLetters(q).map((l, i) => [i ? ' ' : null, h('span', { class: 'ans' }, l)])),
+          h('td', { class: 'indent' }, q.number, q.excerpt ? [' ', h('span', { class: 'muted' }, q.excerpt)] : null),
+          h('td', {}, q.raw ? (q.answerChips ? q.answerChips.map((l, i) => [i ? ' ' : null, h('span', { class: 'ans' }, l)]) : h('span', { class: 'muted' }, q.answerText)) : answerLetters(q).map((l, i) => [i ? ' ' : null, h('span', { class: 'ans' }, l)])),
           h('td', { class: 'num' }, q.points == null ? '' : String(q.points)),
           h('td', { class: 'muted' }, includes),
           h('td', {}, status)));

@@ -7,7 +7,7 @@
  * `blocking` is true when importing would be unsafe (shown as errors; the importer refuses).
  */
 (function (root) {
-  const ok = (q) => q.type === 'multiple_choice' || q.type === 'multiple_answers';
+  const ok = (q) => !!q.raw || q.type === 'multiple_choice' || q.type === 'multiple_answers';
 
   // opts.subset: the quiz holds only the questions the user picked, so totals taken from the
   // whole Gradescope quiz (group points, total points, figure count) no longer apply.
@@ -28,6 +28,7 @@
       seen[q.number] = true;
       if (!ok(q)) { add('warn', q.number + ' will be SKIPPED: ' + (q.reason || 'unsupported type "' + q.type + '"') + '.'); return; }
       if (q.points === null || q.points === undefined) add('warn', q.number + ' has no point value.');
+      if (q.raw) return; // copied from Canvas: kept as it was
       if (!q.choices.some((c) => c.correct)) add('error', q.number + ' has no correct answer marked; it would grade everyone wrong.');
       if (q.type === 'multiple_choice' && q.choices.filter((c) => c.correct).length > 1) add('error', q.number + ' marks more than one correct answer but is single-choice.');
       if (!q.prompt) add('warn', q.number + ' has an empty question text.');
