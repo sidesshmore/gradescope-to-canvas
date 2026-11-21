@@ -12,7 +12,7 @@ If you've ever rebuilt an exam in Canvas by hand, you know the drill. Retype eve
 
 1. On Gradescope, open the assignment's **rubric page** and click **Copy quiz for Canvas**. It's the dark tab on the right edge of the page.
 2. In Canvas, open the target quiz's **Edit** page and click **Import from Gradescope**.
-3. Look over the preview, click **Import**, then reload the page.
+3. Tick the questions you want in the preview (all new ones start ticked), click **Import**, then reload the page.
 
 The quiz title, settings and publishing are left to you.
 

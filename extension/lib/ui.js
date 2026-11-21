@@ -70,6 +70,9 @@
   table { border-collapse: collapse; width: 100%; font-size: 12.5px; font-variant-numeric: tabular-nums; }
   th { position: sticky; top: 0; background: #fff; text-align: left; font-weight: 550; color: var(--muted); font-size: 12px; padding: 7px 12px; border-bottom: 1px solid var(--line); }
   td { padding: 6px 12px; border-bottom: 1px solid #F0F1F3; } tr:last-child td { border-bottom: 0; }
+  td.pick, th.pick { width: 34px; padding-right: 0; }
+  td.pick input, th.pick input { margin: 0; width: 15px; height: 15px; accent-color: var(--ink); cursor: pointer; vertical-align: middle; }
+  .qhead { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
   td.num, th.num { text-align: right; width: 64px; }
   .ans { display: inline-block; min-width: 18px; padding: 0 5px; text-align: center; font-weight: 650;
     background: linear-gradient(transparent 14%, var(--hl) 14%, var(--hl) 92%, transparent 92%); border-radius: 2px; }
